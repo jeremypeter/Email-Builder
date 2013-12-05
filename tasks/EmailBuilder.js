@@ -27,6 +27,7 @@ module.exports = function(grunt) {
   var path      = require('path');
   var cheerio   = require('cheerio');
   var  _        = grunt.util._;
+  var cm        = require('child_process').exec;
   var helpers   = require('grunt-lib-contrib').init(grunt);
 
   grunt.registerMultiTask(task_name, task_description, function() {
@@ -76,7 +77,7 @@ module.exports = function(grunt) {
         grunt.log.writeln('File ' + file.dest.cyan + ' created.');
 
         if (options.litmus) {
-          var cm      = require('child_process').exec;
+
           var command = sendLitmus(output, title);
 
           cm(command, function(err, stdout, stderr) {
