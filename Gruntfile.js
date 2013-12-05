@@ -1,7 +1,6 @@
 module.exports = function(grunt) {
 
   var testFiles = {
-    'example/test/jadeTest.html' : 'example/jade/jadeTest.jade',
     'example/test/htmlTest.html' : 'example/html/htmlTest.html'
   };
 

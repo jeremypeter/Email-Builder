@@ -21,11 +21,9 @@ module.exports = function(grunt) {
 
 
   // Required modules
-  var juice     = require('juice')
+  var juice     = require('juice');
   var http      = require('http');
   var builder   = require('xmlbuilder');
-  var less      = require('less');
-  var jade      = require('jade');
   var path      = require('path');
   var cheerio   = require('cheerio');
   var  _        = grunt.util._;
@@ -34,67 +32,47 @@ module.exports = function(grunt) {
   grunt.registerMultiTask(task_name, task_description, function() {
 
     var options   = this.options();
-    var basepath  = options.basepath;
     var done      = this.async();
 
-    grunt.util.async.forEachSeries(this.files, function(file, next) {
+    this.files.forEach(function(file) {
+      console.log(file.src);
 
-      var data      = grunt.file.read(file.src);
-      var basename  = path.basename(file.src,  '.html');
-      var basepath  = process.cwd();
+      file.src.filter(function(filepath) {
 
-      // jade compile
-      if ( path.extname(file.src) === '.jade') {
-        data = renderJade(data, file.src);
-      }
+        var data      = grunt.file.read(filepath);
+        var basepath  = process.cwd();
+        var $         = cheerio.load(data);
+        var date      = String(Math.round(new Date().getTime() / 1000));
+        var title     = $('title').text() + date;
+        var srcFiles  = [];
+        var inlineCss;
 
-      var $         = cheerio.load(data);
-      var date      = String(Math.round(new Date().getTime() / 1000));
-      var title     = $('title').text() + date;
-      var srcFiles  = [];
-      var inlineCss;
+        $('link').each(function (i, elem) {
+          var target = $(this).attr('href');
+          var map = {
+            file    : target,
+            inline  : $(this).attr('data-placement') === 'style-tag' ? false : true
+          };
 
-      $('link').each(function (i, elem) {
-        var target = $(this).attr('href');
-        var map = {
-          file    : target,
-          inline  : $(this).attr('data-placement') === 'style-tag' ? false : true
-        };
+          srcFiles.push(map);
 
-        srcFiles.push(map);
+          $(this).remove();
+        });
 
-        $(this).remove();
-      });
+        grunt.file.setBase(path.dirname(file.src));
 
-      // Set to target file path to get css
-      grunt.file.setBase(path.dirname(file.src));
+        srcFiles.forEach(function(input) {
+          var data = grunt.file.read(input.file);
 
-      // Less Compilation
-      grunt.util.async.forEachSeries(srcFiles, function(srcFile, nextFile) {
-        var _that = $(this);
-
-        if (srcFile.inline) {
-          renderCss(srcFile.file, function(data) {
-            inlineCss = data;
-            nextFile();
-          });
-        } else {
-
-          renderCss(srcFile.file, function(data) {
-            $('head').append('<style>' + data + '</style>');
-            nextFile();
-          });
-        }
-      }, function(err) {
+          input.inline ? inlineCss = data : $('head').append('<style>' + data + '</style>');
+        });
 
         var output = juice($.html(), inlineCss);
 
-        grunt.log.writeln('Writing...'.cyan);
-
-        //Reset to grunt directory
         grunt.file.setBase(basepath);
-        grunt.file.write(file.dest, output);
 
+        grunt.log.writeln('Writing...'.cyan);
+        grunt.file.write(file.dest, output);
         grunt.log.writeln('File ' + file.dest.cyan + ' created.');
 
         if (options.litmus) {
@@ -107,56 +85,10 @@ module.exports = function(grunt) {
 
             // Delete XML After being curl'd
             grunt.file.delete('data.xml');
-
-            next();
           });
-
-        } else {
-          next();
         }
-      });
-
-    }, function() {
-      done();
+      })
     });
-
-    function renderCss(input, callback) {
-
-      var data = grunt.file.read(input);
-
-      if ( path.extname(input) === '.less') {
-        var parser = new(less.Parser)({
-          paths     : [path.dirname(input)], // Specify search paths for @import directives
-          filename  : path.basename(input) // Specify a filename, for better error messages
-        });
-
-        parser.parse(data, function (err, tree) {
-          if (err)
-            return console.error(err);
-
-          data = tree.toCSS(); // Minify CSS output
-          callback(data);
-        });
-
-      } else {
-
-        callback(data);
-
-      }
-    }
-
-    function renderJade(data, filename) {
-      // Compile Jade files
-      var jadeOptions = {
-        filename: filename,
-        pretty : true
-      };
-
-      var fn    = jade.compile(data, jadeOptions);
-      var html  = fn(options.jade);
-
-      return html;
-    };
 
     function sendLitmus(data, title) {
       // Write the data xml file to curl, prolly can get rid of this somehow.
